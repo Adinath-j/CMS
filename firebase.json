@@ -2,7 +2,6 @@
   "firestore": {
     "database": "(default)",
     "location": "asia-south1",
- 
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
@@ -11,12 +10,6 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
     ]
   }
 }
