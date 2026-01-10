@@ -83,7 +83,7 @@ window.deleteNote = async function (id) {
     const note = doc.data();
 
     // Delete from Cloudinary first
-    const res = await fetch("http://localhost:5000/delete-file", {
+    const res = await fetch("https://cms2-xpvn.onrender.com/delete-file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ publicId: note.cloudinaryId })

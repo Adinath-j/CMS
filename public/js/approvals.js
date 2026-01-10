@@ -114,7 +114,7 @@ window.rejectUser = async function(uid){
     return;
   }
 
-  await fetch("http://localhost:5000/delete-user",{
+  await fetch("https://cms2-xpvn.onrender.com/delete-user",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ uid })
