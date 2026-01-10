@@ -3,26 +3,11 @@ window.templates = {
   /* ================= DASHBOARD ================= */
   dashboard: `
     <div id="dashboard-header" class="card">
-      <h2 id="greeting">Welcome</h2>
+      <h2 id="greeting"></h2>
       <p id="profileLine"></p>
     </div>
 
-    <div id="dashboard-stats" class="grid-3">
-      <div class="card">
-        <h3>Attendance</h3>
-        <div class="stat-number" id="stat-attendance">0%</div>
-      </div>
-
-      <div class="card">
-        <h3>Pending</h3>
-        <div class="stat-number" id="stat-pending">0</div>
-      </div>
-
-      <div class="card">
-        <h3>Notifications</h3>
-        <div class="stat-number" id="stat-notifications">0</div>
-      </div>
-    </div>
+    <div id="dashboard-stats" class="grid-3"></div>
 
     <div id="dashboard-content"></div>
   `,
@@ -39,7 +24,11 @@ window.templates = {
 
       <div class="form-group">
         <label>Subject</label>
-        <input id="noteSubject" class="form-control">
+<select id="noteSubject" class="form-control"></select>
+
+<label>Chapter</label>
+<select id="noteChapter" class="form-control"></select>
+
       </div>
 
       <div class="form-group">
@@ -87,7 +76,7 @@ window.templates = {
     <div id="hodStaffApprovals" class="notes-grid"></div>
   `,
 
-  /* ================= HOD CUSTOMIZATION ================= */
+  /* ================= HOD CUSTOMIZE ================= */
   hodCustomize: `
     <h3 class="section-title">College Structure</h3>
 
@@ -118,17 +107,20 @@ window.templates = {
   attendanceStaff: `
     <h3 class="section-title">Mark Attendance</h3>
 
-    <div class="card" style="max-width:600px;margin-bottom:20px">
-      <label>Subject</label>
-      <input id="attSubject" class="form-control">
+    <div class="card" style="max-width:700px;margin-bottom:20px">
+      <label>Semester</label>
+      <select id="attSemester" class="form-control">
+        <option>1</option><option>2</option><option>3</option><option>4</option>
+        <option>5</option><option>6</option><option>7</option><option>8</option>
+      </select>
 
       <label>Lecture ID</label>
       <input id="attLecture" class="form-control" placeholder="DBMS_01">
 
-      <button class="btn btn-primary" onclick="loadAttendanceStudents()">Load Students</button>
+      <button class="btn btn-primary" onclick="loadAttendanceGrid()">Load Students</button>
     </div>
 
-    <div id="attendanceList" class="notes-grid"></div>
+    <div id="attendanceTable" style="overflow-x:auto"></div>
 
     <button class="btn btn-success" onclick="submitAttendance()">Submit Attendance</button>
   `,
@@ -137,23 +129,52 @@ window.templates = {
     <h3 class="section-title">Today's Attendance</h3>
     <div id="attendanceList" class="notes-grid"></div>
   `,
-  // ==================syllabus===============================
+
+  /* ================= HOD SYLLABUS ================= */
   hodSyllabus: `
-<h3 class="section-title">Semester Syllabus</h3>
+    <h3 class="section-title">Semester Syllabus</h3>
 
-<div class="card">
-  <label>Semester</label>
-  <select id="syllabusSem" class="form-control">
-    <option>1</option><option>2</option><option>3</option><option>4</option>
-    <option>5</option><option>6</option><option>7</option><option>8</option>
-  </select>
+    <div class="card" style="max-width:600px">
+      <label>Semester</label>
+      <select id="syllabusSem" class="form-control">
+        <option>1</option><option>2</option><option>3</option><option>4</option>
+        <option>5</option><option>6</option><option>7</option><option>8</option>
+      </select>
 
-  <label>Subjects (comma separated)</label>
-  <input id="syllabusSubjects" class="form-control" placeholder="DBMS, SE, CN">
+      <label>Subjects (comma separated)</label>
+      <input id="syllabusSubjects" class="form-control" placeholder="DBMS, SE, CN">
 
-  <button class="btn btn-primary" onclick="saveSyllabus()">Save</button>
-</div>
+      <button class="btn btn-primary" onclick="saveSyllabus()">Save</button>
+    </div>
 
-<div id="syllabusList"></div>
-`
+    <div id="syllabusList"></div>
+  `, viewSyllabus: `
+  <h3 class="section-title">My Syllabus</h3>
+  <div id="syllabusViewer"></div>
+`,
+
+  hodSyllabus: `
+  <h3 class="section-title">Syllabus Admin</h3>
+
+  <div class="card">
+    <label>Semester</label>
+    <select id="syllabusSem" class="form-control">
+      <option>1</option><option>2</option><option>3</option><option>4</option>
+      <option>5</option><option>6</option><option>7</option><option>8</option>
+    </select>
+
+    <label>Subjects (comma separated)</label>
+    <input id="syllabusSubjects" class="form-control" placeholder="DBMS, CN, OS">
+
+    <button class="btn btn-primary" onclick="saveSyllabus()">Add Subjects</button>
+  </div>
+
+  <div id="syllabusList"></div>
+`,
+syllabusViewer: `
+  <h3 class="section-title">Syllabus</h3>
+  <div id="syllabusViewer" class="notes-grid"></div>
+`,
+
+
 };

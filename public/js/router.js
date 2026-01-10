@@ -1,26 +1,4 @@
-window.roles = {
-  student: [
-  { name: "Dashboard", id: "dashboard" },
-  { name: "My Notes", id: "studentNotes" }
-],
-
-staff: [
-  { name: "Dashboard", id: "dashboard" },
-  { name: "Upload Notes", id: "uploadStaff" },
-  { name: "My Notes", id: "manageNotes" },
-  { name: "Student Requests", id: "studentApprovals" },
-  { name: "Attendance", id: "attendanceStaff" }
-],
-
-hod: [
-  { name: "Dashboard", id: "dashboard" },
-  { name: "Approve Notes", id: "approveNotes" },
-  { name: "All Notes", id: "manageNotes" },
-  { name: "Student Approvals", id: "hodStudentApprovals" },
-  { name: "Staff Approvals", id: "hodStaffApprovals" }
-]
-};
-
+// ================= ROUTER =================
 
 window.showDashboard = function (user) {
   document.getElementById("login-page").classList.add("hidden");
@@ -33,31 +11,84 @@ window.showDashboard = function (user) {
   const nav = document.getElementById("sidebar-nav");
   nav.innerHTML = "";
 
-  window.roles[user.role].forEach(item => {
+  // 🔥 CORRECT ROLE SOURCE
+  const roleNav = window.ROLES?.[user.role] || [];
+
+  roleNav.forEach(item => {
     const li = document.createElement("li");
     const a = document.createElement("a");
+
     a.innerText = item.name;
     a.onclick = () => loadPage(item.id);
+
     li.appendChild(a);
     nav.appendChild(li);
   });
+
   loadPage("dashboard");
 };
-
-window.loadPage = async function(pageId) {
+// ================= PAGE LOADER =================
+window.loadPage = async function (pageId) {
   const content = document.getElementById("dynamic-content");
 
-  content.innerHTML = window.templates[pageId] || `<div class="card">Coming soon</div>`;
+  content.innerHTML = window.templates?.[pageId] || `<div class="card">Coming soon</div>`;
 
-  // Wait for DOM paint
-  await new Promise(r => setTimeout(r, 10));
+  // Let browser paint DOM before JS runs
+  await new Promise(r => setTimeout(r, 30));
 
-  if (pageId === "dashboard") await loadDashboard();
-  if (pageId === "staffAttendance") loadStaffAttendance();
-  if (pageId === "approveNotes") loadPendingNotes();
-  if (pageId === "manageNotes") loadManageNotes();
-  if (pageId === "studentNotes") loadStudentNotes();
-  if (pageId === "studentApprovals") loadStudentApprovals();
-  if (pageId === "hodStudentApprovals") loadHodStudentApprovals();
-  if (pageId === "hodStaffApprovals") loadHodStaffApprovals();
+  try {
+    switch (pageId) {
+      case "dashboard":
+        await window.loadDashboard?.();
+        break;
+
+      case "staffAttendance":
+        await window.loadStaffAttendance?.();
+        break;
+
+      case "approveNotes":
+        await window.loadPendingNotes?.();
+        break;
+
+      case "manageNotes":
+        await window.loadManageNotes?.();
+        break;
+
+      case "studentNotes":
+        await window.loadStudentNotes?.();
+        break;
+
+      case "studentApprovals":
+        await window.loadStudentApprovals?.();
+        break;
+
+      case "hodStudentApprovals":
+        await window.loadHodStudentApprovals?.();
+        break;
+
+      case "hodStaffApprovals":
+        await window.loadHodStaffApprovals?.();
+        break;
+
+      case "hodCustomize":
+        await window.loadHodCustomize?.();
+        break;
+
+      case "hodSyllabus":
+        await window.loadSyllabusUI?.();
+        break;
+
+      case "uploadStaff":
+        await window.loadStaffSyllabusOptions?.();  // 🔥 must await
+        break;
+
+      case "viewSyllabus":
+        await window.loadStudentSyllabus?.();
+        break;
+    }
+
+  } catch (err) {
+    console.error("Page load failed:", err);
+    content.innerHTML = `<div class="card">This section failed to load</div>`;
+  }
 };

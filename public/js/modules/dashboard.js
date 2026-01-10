@@ -2,35 +2,44 @@ window.loadDashboard = async function () {
   const stats = document.getElementById("dashboard-stats");
   const main = document.getElementById("dashboard-content");
 
+  if (!stats || !main) return;
+
   const me = auth.currentUser;
-  const snap = await db.collection("users").doc(me.uid).get();
-  const profile = snap.data();
+  const profile = (await db.collection("users").doc(me.uid).get()).data();
 
-  document.getElementById("greeting").innerText =
-    `Welcome, ${profile.name}`;
-
+  document.getElementById("greeting").innerText = `Welcome, ${profile.name}`;
   document.getElementById("profileLine").innerText =
     `${profile.department} • ${profile.role.toUpperCase()}`;
 
-  if (profile.role === "student") return await loadStudentDashboard(profile, stats, main);
+  if (profile.role === "student") return loadStudentDashboard(profile, stats, main);
   if (profile.role === "staff") return loadStaffDashboard(profile, stats, main);
   if (profile.role === "hod") return loadHodDashboard(profile, stats, main);
 };
 
 
+// ================= STUDENT =================
 async function loadStudentDashboard(profile, stats, main) {
+  if (!stats || !main) return;
+
   const uid = auth.currentUser.uid;
-    if (!stats || !main) return;   // Prevent crash
 
-  const attSnap = await db.collection("attendance").doc(uid).get();
-  const att = attSnap.exists ? attSnap.data() : { totalDays: 1, presentDays: 1 };
-  const attendance = Math.round((att.presentDays / att.totalDays) * 100);
+  // Attendance
+  const attLogs = await db.collection("attendance_logs")
+    .where("studentId", "==", uid)
+    .get();
 
-  const sylKey = `${profile.department}_${profile.semester}`;
-  const sylSnap = await db.collection("syllabus_progress").doc(sylKey).get();
-  const syl = sylSnap.exists ? sylSnap.data() : { totalUnits: 1, completedUnits: 1 };
-  const progress = Math.round((syl.completedUnits / syl.totalUnits) * 100);
-  document.getElementById("stat-attendance").innerText = attendance + "%";
+  let total = attLogs.size;
+  let present = attLogs.docs.filter(d => d.data().status === "present").length;
+  const attendance = total ? Math.round((present / total) * 100) : 0;
+
+  // Syllabus progress
+  const key = `${profile.department}_${profile.semester}`;
+  const sylSnap = await db.collection("syllabus").doc(key).get();
+  const subjects = sylSnap.exists ? sylSnap.data().subjects.length : 1;
+
+  const progress = Math.min(100, Math.round((total / (subjects * 10)) * 100));
+
+  // Notifications
   const notiSnap = await db.collection("notifications")
     .where("uid","==",uid)
     .where("read","==",false)
@@ -47,7 +56,7 @@ async function loadStudentDashboard(profile, stats, main) {
     .where("status","==","approved")
     .get();
 
-  main.innerHTML = `<h3>My Notes</h3><div class="notes-grid"></div>`;
+  main.innerHTML = `<h3>My Subjects</h3><div class="notes-grid"></div>`;
   const grid = main.querySelector(".notes-grid");
 
   notes.forEach(n=>{
@@ -63,6 +72,7 @@ async function loadStudentDashboard(profile, stats, main) {
   });
 }
 
+// ================= STAFF =================
 
 async function loadStaffDashboard(profile, stats, main) {
   const uid = auth.currentUser.uid;
@@ -91,6 +101,8 @@ async function loadStaffDashboard(profile, stats, main) {
 }
 
 
+// ================= HOD =================
+
 async function loadHodDashboard(profile, stats, main) {
   const dept = profile.department;
 
@@ -105,21 +117,29 @@ async function loadHodDashboard(profile, stats, main) {
     .where("status","==","pending")
     .get();
 
-  const students = await db.collection("users")
-    .where("role","==","student")
-    .where("department","==",dept)
-    .get();
+  const deptAttendance = await getDepartmentAttendance(dept);
 
   stats.innerHTML = `
-    <div class="card"><h3>Staff Members</h3><div class="stat-number">${staffSnap.size}</div></div>
-    <div class="card"><h3>Pending Notes</h3><div class="stat-number">${pendingSnap.size}</div></div>
-    <div class="card"><h3>Students</h3><div class="stat-number">${students.size}</div></div>
+    <div class="card">
+      <h3>Staff Members</h3>
+      <div class="stat-number">${staffSnap.size}</div>
+    </div>
+
+    <div class="card">
+      <h3>Pending Notes</h3>
+      <div class="stat-number">${pendingSnap.size}</div>
+    </div>
+
+    <div class="card">
+      <h3>Dept Attendance</h3>
+      <div class="stat-number">${deptAttendance}%</div>
+    </div>
   `;
 
   main.innerHTML = `<h3>Staff Overview</h3><div class="notes-grid"></div>`;
   const grid = main.querySelector(".notes-grid");
 
-  staffSnap.forEach(s=>{
+  staffSnap.forEach(s => {
     const d = s.data();
     grid.innerHTML += `
       <div class="note-card">
@@ -132,32 +152,37 @@ async function loadHodDashboard(profile, stats, main) {
   });
 }
 
-
 async function getStudentAttendance(uid) {
-  const snap = await db.collectionGroup("records")
-    .where("studentUid","==",uid)
-    .get();
+  const sessions = await db.collection("attendance_sessions").get();
 
-  const total = snap.size;
-  const present = snap.docs.filter(d=>d.data().status==="present").length;
+  let total = 0;
+  let present = 0;
+
+  for (const s of sessions.docs) {
+    const rec = await s.ref.collection("records").doc(uid).get();
+    if (rec.exists) {
+      total++;
+      if (rec.data().status === "present") present++;
+    }
+  }
 
   return total === 0 ? 0 : Math.round((present / total) * 100);
 }
+
 async function getDepartmentAttendance(dept) {
-  const students = await db.collection("users")
-    .where("role","==","student")
+  const sessions = await db.collection("attendance_sessions")
     .where("department","==",dept)
     .get();
 
-  let total = 0, present = 0;
+  let total = 0;
+  let present = 0;
 
-  for (const s of students.docs) {
-    const snap = await db.collectionGroup("records")
-      .where("studentUid","==",s.id)
-      .get();
-
-    total += snap.size;
-    present += snap.docs.filter(d=>d.data().status==="present").length;
+  for (const s of sessions.docs) {
+    const records = await s.ref.collection("records").get();
+    records.forEach(r=>{
+      total++;
+      if (r.data().status === "present") present++;
+    });
   }
 
   return total === 0 ? 0 : Math.round((present / total) * 100);

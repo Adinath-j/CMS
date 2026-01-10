@@ -1,31 +1,42 @@
-function uploadNote() {
-  const links = [];
+/* ===================== UPLOAD NOTE ===================== */
+window.uploadNote = async function () {
+  try {
+    const links = [];
 
-  document.querySelectorAll("#linksContainer div").forEach(div => {
-    const label = div.querySelector(".linkLabel").value;
-    const url = div.querySelector(".linkURL").value;
-    if (label && url) links.push({ label, url });
-  });
+    document.querySelectorAll("#linksContainer div").forEach(div => {
+      const label = div.querySelector(".linkLabel")?.value?.trim();
+      const url = div.querySelector(".linkURL")?.value?.trim();
+      if (label && url) links.push({ label, url });
+    });
 
-  const title = document.getElementById("noteTitle").value;
-  const subject = document.getElementById("noteSubject").value;
-  const file = document.getElementById("noteFile").files[0];
+    const title = noteTitle.value.trim();
+    const subject = noteSubject.value.trim();
+    const chapter = noteChapter?.value?.trim() || "";
+    const file = noteFile.files[0];
 
-  if (!title || !subject || !file) return alert("All fields required");
+    if (!title || !subject || !file) {
+      alert("Title, Subject & PDF required");
+      return;
+    }
 
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", "cms_notes");
-  formData.append("folder", "college_notes");
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      alert("Only PDF allowed");
+      return;
+    }
 
-  fetch("https://api.cloudinary.com/v1_1/dhmwkj9zm/image/upload", {
-    method: "POST",
-    body: formData
-  })
-  .then(res => res.json())
-  .then(async data => {
-    const pdfURL = data.secure_url;
-    const previewURL = pdfURL.replace("/raw/upload/", "/image/upload/pg_1/").replace(".pdf", ".png");
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "cms_notes");
+    formData.append("folder", "college_notes");
+
+    const res = await fetch("https://api.cloudinary.com/v1_1/dhmwkj9zm/image/upload", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await res.json();
+
+    if (!data.secure_url) throw "Upload failed";
 
     const user = auth.currentUser;
     const staff = (await db.collection("users").doc(user.uid).get()).data();
@@ -33,47 +44,71 @@ function uploadNote() {
     await db.collection("notes").add({
       title,
       subject,
+      chapter,
       department: staff.department,
       uploadedBy: user.uid,
       status: "pending",
-      fileURL: pdfURL,
-      previewURL,
+      fileURL: data.secure_url,
+      previewURL: data.secure_url.replace("/raw/upload/", "/image/upload/pg_1/").replace(".pdf", ".png"),
       cloudinaryId: data.public_id,
       links,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    document.getElementById("noteTitle").value = "";
-    document.getElementById("noteSubject").value = "";
-    document.getElementById("noteFile").value = "";
-    document.getElementById("linksContainer").innerHTML = "";
+    noteTitle.value = "";
+    noteSubject.value = "";
+    if (noteChapter) noteChapter.value = "";
+    noteFile.value = "";
+    linksContainer.innerHTML = "";
 
-    alert("Sent to HOD for approval");
-  });
-}
+    alert("Sent for approval");
 
-function deleteNote(id) {
+  } catch (e) {
+    console.error(e);
+    alert("Upload failed");
+  }
+};
+
+/* ===================== DELETE NOTE ===================== */
+
+window.deleteNote = async function (id) {
   if (!confirm("Delete this note permanently?")) return;
+  try {
+    const doc = await db.collection("notes").doc(id).get();
+    if (!doc.exists) {
+      alert("Note not found");
+      return;
+    }
 
-  db.collection("notes").doc(id).get().then(doc => {
     const note = doc.data();
 
-    fetch("http://localhost:5000/delete-file", {
+    // Delete from Cloudinary first
+    const res = await fetch("http://localhost:5000/delete-file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ publicId: note.cloudinaryId })
-    }).then(res => {
-      if (!res.ok) {
-        alert("Cloudinary delete failed");
-        return;
-      }
-
-      db.collection("notes").doc(id).delete().then(loadManageNotes);
     });
-  });
-}
 
-function addLink() {
+    if (!res.ok) {
+      throw new Error("Cloudinary delete failed");
+    }
+
+    // Delete Firestore record
+    await db.collection("notes").doc(id).delete();
+    alert("Note deleted");
+    // Refresh UI safely
+    window.loadManageNotes?.();
+  } catch (err) {
+    console.error(err);
+    alert("Failed to delete note");
+  }
+};
+/* ===================== ADD REFERENCE LINK ===================== */
+
+window.addLink = function () {
+  const container = document.getElementById("linksContainer");
+  if (!container) return;
+
   const div = document.createElement("div");
   div.className = "form-group";
   div.style.display = "grid";
@@ -86,5 +121,5 @@ function addLink() {
     <button class="btn btn-danger" onclick="this.parentElement.remove()">✖</button>
   `;
 
-  document.getElementById("linksContainer").appendChild(div);
-}
+  container.appendChild(div);
+};

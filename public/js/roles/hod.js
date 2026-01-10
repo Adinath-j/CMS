@@ -1,59 +1,75 @@
-function loadPendingNotes() {
+/* ================= PENDING NOTES ================= */
+
+window.loadPendingNotes = async function () {
   const container = document.getElementById("pendingNotes");
   if (!container) return;
 
   container.className = "notes-grid";
   container.innerHTML = "";
 
-  db.collection("notes").where("status", "==", "pending").get().then(snap => {
-    snap.forEach(doc => {
-      const n = doc.data();
+  const snap = await db.collection("notes")
+    .where("status", "==", "pending")
+    .get();
 
-      container.innerHTML += `
-        <div class="note-card">
-          <div class="note-preview"><img src="${n.previewURL}"></div>
-          <div class="note-body">
-            <div class="note-title">${n.title}</div>
-            <div class="note-subject">${n.subject}</div>
-            <a href="${n.fileURL}" target="_blank" class="btn btn-outline">Open PDF</a>
-          </div>
-          <div class="note-footer">
-            <button class="btn btn-success" onclick="approveNote('${doc.id}')">Approve</button>
-            <button class="btn btn-danger" onclick="rejectNote('${doc.id}')">Reject</button>
-          </div>
+  if (snap.empty) {
+    container.innerHTML = `<div class="card">No pending notes</div>`;
+    return;
+  }
+
+  snap.forEach(doc => {
+    const n = doc.data();
+    container.innerHTML += `
+      <div class="note-card">
+        <div class="note-preview"><img src="${n.previewURL}"></div>
+        <div class="note-body">
+          <div class="note-title">${n.title}</div>
+          <div class="note-subject">${n.subject}</div>
+          <a href="${n.fileURL}" target="_blank" class="btn btn-outline">Open PDF</a>
         </div>
-      `;
-    });
+        <div class="note-footer">
+          <button class="btn btn-success" onclick="approveNote('${doc.id}')">Approve</button>
+          <button class="btn btn-danger" onclick="rejectNote('${doc.id}')">Reject</button>
+        </div>
+      </div>
+    `;
   });
-}
+};
 
-function approveNote(id) {
-  db.collection("notes").doc(id).update({ status: "approved" }).then(loadPendingNotes);
-}
+window.approveNote = async function (id) {
+  await db.collection("notes").doc(id).update({ status: "approved" });
+  loadPendingNotes();
+};
 
-function rejectNote(id) {
-  db.collection("notes").doc(id).get().then(doc => {
-    const note = doc.data();
+window.rejectNote = async function (id) {
+  const doc = await db.collection("notes").doc(id).get();
+  if (!doc.exists) return;
 
-    fetch("http://localhost:5000/delete-file", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ publicId: note.cloudinaryId })
-    }).then(() => {
-      db.collection("notes").doc(id).delete().then(loadPendingNotes);
-    });
+  const note = doc.data();
+
+  await fetch("http://localhost:5000/delete-file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ publicId: note.cloudinaryId })
   });
-}
 
-async function loadManageNotes() {
+  await db.collection("notes").doc(id).delete();
+  loadPendingNotes();
+};
+
+
+
+/* ================= ALL NOTES BY STAFF ================= */
+
+window.loadManageNotes = async function () {
   const container = document.getElementById("manageNotes");
   if (!container) return;
 
-  container.innerHTML = "";
   container.className = "notes-grid";
+  container.innerHTML = "";
 
   const usersSnap = await db.collection("users")
     .where("role", "==", "staff")
+    .where("status", "==", "active")
     .get();
 
   for (const userDoc of usersSnap.docs) {
@@ -68,7 +84,6 @@ async function loadManageNotes() {
     if (notesSnap.empty) continue;
 
     let notesHTML = "";
-
     notesSnap.forEach(doc => {
       const n = doc.data();
       notesHTML += `
@@ -86,77 +101,57 @@ async function loadManageNotes() {
       </div>
     `;
   }
-}
-async function loadHodApprovals() {
-  const snap = await db.collection("approvals").where("stage","==","hod").get();
-  const box = document.getElementById("hodApprovals");
-  box.innerHTML = "";
+};
 
-  snap.forEach(doc => {
-    const a = doc.data();
-    box.innerHTML += `
-      <div class="card">
-        <p>${a.uid} (${a.role})</p>
-        <button onclick="finalApprove('${doc.id}','${a.role}')">Approve</button>
-      </div>
-    `;
-  });
-}
 
-function finalApprove(uid, role) {
-  db.collection("users").doc(uid).update({ status: "active" });
-  db.collection("approvals").doc(uid).delete();
 
-  if (role === "student") db.collection("students").doc(uid).set({});
-  if (role === "staff") db.collection("staff").doc(uid).set({});
-}
+/* ================= STUDENT & STAFF APPROVALS ================= */
 
-async function loadHodStudentApprovals() {
+window.loadHodStudentApprovals = async function () {
   const box = document.getElementById("hodStudentApprovals");
   if (!box) return;
 
-  const snap = await db.collection("approvals")
-    .where("stage", "==", "hod")
-    .where("role", "==", "student")
-    .get();
-
   box.innerHTML = "";
+
+  const hod = (await db.collection("users").doc(auth.currentUser.uid).get()).data();
+
+  const snap = await db.collection("approvals")
+    .where("role", "==", "student")
+    .where("department", "==", hod.department)
+    .get();
 
   snap.forEach(doc => {
     const a = doc.data();
-    box.innerHTML += `
-      <div class="card">
-        <p>${a.uid}</p>
-        <button class="btn btn-success" onclick="finalApprove('${doc.id}','student')">Final Approve</button>
-      </div>
-    `;
+    box.innerHTML += renderApprovalCard(doc.id, a, "student");
   });
-}
+};
 
-async function loadHodStaffApprovals() {
+window.loadHodStaffApprovals = async function () {
   const box = document.getElementById("hodStaffApprovals");
   if (!box) return;
 
+  box.innerHTML = "";
+
+  const hod = (await db.collection("users").doc(auth.currentUser.uid).get()).data();
+
   const snap = await db.collection("approvals")
-    .where("stage", "==", "hod")
     .where("role", "==", "staff")
+    .where("department", "==", hod.department)
     .get();
 
-  box.innerHTML = "";
+  if (snap.empty) {
+    box.innerHTML = `<div class="card">No pending staff approvals</div>`;
+    return;
+  }
 
   snap.forEach(doc => {
     const a = doc.data();
-    box.innerHTML += `
-      <div class="card">
-        <p>${a.uid}</p>
-        <button class="btn btn-success" onclick="finalApprove('${doc.id}','staff')">Approve</button>
-  <button class="btn btn-danger" onclick="rejectUser('${doc.id}')">Reject</button>
-      </div>
-    `;
+    box.innerHTML += renderApprovalCard(doc.id, a, "staff");
   });
-}
+};
 
-async function finalApprove(uid, role) {
+
+window.finalApprove = async function (uid, role) {
   await db.collection("users").doc(uid).update({ status: "active" });
   await db.collection("approvals").doc(uid).delete();
 
@@ -165,14 +160,17 @@ async function finalApprove(uid, role) {
 
   loadHodStudentApprovals();
   loadHodStaffApprovals();
-}
+};
 
-roles.hod.nav.push(
-  { name: "Customize", id: "hodCustomize" }
-);
+
+
+/* ================= CUSTOMIZE (DEPT & CLASS) ================= */
+
 window.loadHodCustomize = async function () {
   const deptBox = document.getElementById("deptList");
   const classBox = document.getElementById("classList");
+
+  if (!deptBox || !classBox) return;
 
   deptBox.innerHTML = "";
   classBox.innerHTML = "";
@@ -196,26 +194,52 @@ window.loadHodCustomize = async function () {
   });
 };
 
-window.addDepartment = async () => {
+window.addDepartment = async function () {
   const name = newDept.value.trim();
   if (!name) return;
   await db.collection("config_departments").add({ name });
   loadHodCustomize();
 };
 
-window.deleteDept = async (id) => {
+window.deleteDept = async function (id) {
   await db.collection("config_departments").doc(id).delete();
   loadHodCustomize();
 };
 
-window.addClass = async () => {
+window.addClass = async function () {
   const name = newClass.value.trim();
   if (!name) return;
   await db.collection("config_classes").add({ name });
   loadHodCustomize();
 };
 
-window.deleteClass = async (id) => {
+window.deleteClass = async function (id) {
   await db.collection("config_classes").doc(id).delete();
   loadHodCustomize();
 };
+
+
+
+/* ================= UI HELPER ================= */
+
+function renderApprovalCard(uid, a, role) {
+  return `
+    <div class="note-card">
+      <div class="note-body">
+        <div class="note-title">${a.name}</div>
+        <div>${a.email}</div>
+        ${role === "student" ? `
+          <div>Roll: ${a.rollNo}</div>
+          <div>Sem: ${a.semester}</div>
+        ` : `
+          <div>Staff ID: ${a.staffId}</div>
+        `}
+        <div>Department: ${a.department}</div>
+      </div>
+      <div class="note-footer">
+        <button class="btn btn-success" onclick="finalApprove('${uid}','${role}')">Approve</button>
+        <button class="btn btn-danger" onclick="rejectUser('${uid}')">Reject</button>
+      </div>
+    </div>
+  `;
+}
