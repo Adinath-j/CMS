@@ -11,11 +11,10 @@ app.use(cors());
 app.use(express.json());
 
 /* ================= FIREBASE ADMIN ================= */
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
-  credential: admin.credential.cert(
-    require("./serviceAccountKey.json")
-  )
+  credential: admin.credential.cert(serviceAccount)
 });
 
 /* ================= CLOUDINARY ================= */
